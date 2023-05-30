@@ -1,0 +1,42 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app: grafana
+  name: grafana
+  namespace: grafana
+spec:
+  replicas: 1
+  strategy:
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 1
+    type: RollingUpdate
+  selector:
+    matchLabels:
+      app: grafana
+  template:
+    metadata:
+      labels:
+        app: grafana
+    spec:
+      securityContext:
+        runAsUser: 472
+        runAsGroup: 472
+        fsGroup: 472
+      dnsPolicy: ClusterFirst
+      restartPolicy: Always
+      containers:
+      - name: grafana
+        image: grafana/grafana:latest
+        volumeMounts:
+        - name: grafana-data-dir
+          mountPath: /var/lib/grafana
+        ports:
+        - containerPort: 3000
+          name: grafana
+          protocol: TCP
+      volumes:
+      - name: grafana-data-dir
+        persistentVolumeClaim:
+          claimName: grafana-pvc
