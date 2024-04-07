@@ -1,0 +1,150 @@
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: grafana
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: grafana-pvc
+  namespace: grafana
+spec:
+  storageClassName: nfs-csi
+  accessModes:
+    - ReadWriteMany
+  resources:
+    requests:
+      storage: 50Mi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app: grafana
+  name: grafana
+  namespace: grafana
+spec:
+  replicas: 1
+  strategy:
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 1
+    type: RollingUpdate
+  selector:
+    matchLabels:
+      app: grafana
+  template:
+    metadata:
+      labels:
+        app: grafana
+    spec:
+      securityContext:
+        runAsUser: 472
+        runAsGroup: 472
+        fsGroup: 472
+      dnsPolicy: ClusterFirst
+      restartPolicy: Always
+      containers:
+      - name: grafana
+        image: grafana/grafana:latest
+        imagePullPolicy: Always
+        resources:
+          requests:
+            memory: "150Mi"
+            cpu: "50m"
+          limits:
+            memory: "500Mi"
+            cpu: "750m"
+        volumeMounts:
+        - name: grafana-data-dir
+          mountPath: /var/lib/grafana
+        ports:
+        - containerPort: 3000
+          name: grafana
+          protocol: TCP
+        livenessProbe:
+          initialDelaySeconds: 10
+          periodSeconds: 10
+          failureThreshold: 30
+          httpGet:
+            path: /login
+            port: 3000
+        startupProbe:
+          initialDelaySeconds: 10
+          failureThreshold: 30
+          periodSeconds: 10
+          httpGet:
+            path: /login
+            port: 3000
+      volumes:
+      - name: grafana-data-dir
+        persistentVolumeClaim:
+          claimName: grafana-pvc
+---
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    app: grafana
+  name: grafana-service-tcp
+  namespace: grafana
+spec:
+  selector:
+    app: grafana
+  ports:
+  - port: 3000
+    targetPort: 3000
+    protocol: TCP
+    name: http-grafana
+  - port: 443
+    targetPort: 3000
+    name: https
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: ingress-grafana
+  namespace: ingress
+spec:
+  selector:
+    name: nginx-ingress-microk8s
+  ports:
+  - port: 80
+    targetPort: 80
+    protocol: TCP
+    name: http
+  - port: 443
+    targetPort: 443
+    name: https
+  type: LoadBalancer
+  loadBalancerIP: 192.168.30.206
+  sessionAffinity: ClientIP
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: grafana-ingress
+  namespace: grafana
+  labels:
+    app: nginx-ingress-grafana
+  annotations:
+    cert-manager.io/cluster-issuer: "letsencrypt"
+spec:
+  ingressClassName: public
+  rules:
+  - host: grafana.padnet.io
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: grafana-service-tcp
+            port:
+              number: 3000
+  tls:
+  - hosts:
+    - grafana.padnet.io
+    # cert-manager will store the created cert in this secret
+    secretName: grafana.padnet.io-tls
