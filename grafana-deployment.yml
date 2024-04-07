@@ -29,7 +29,7 @@ spec:
       containers:
       - name: grafana
         image: grafana/grafana:latest
-        imagePullPolicy: IfNotPresent
+        imagePullPolicy: Always
         resources:
           requests:
             memory: "150Mi"
@@ -44,6 +44,20 @@ spec:
         - containerPort: 3000
           name: grafana
           protocol: TCP
+        livenessProbe:
+          initialDelaySeconds: 10
+          periodSeconds: 10
+          failureThreshold: 30
+          httpGet:
+            path: /login
+            port: 3000
+        startupProbe:
+          initialDelaySeconds: 10
+          failureThreshold: 30
+          periodSeconds: 10
+          httpGet:
+            path: /login
+            port: 3000
       volumes:
       - name: grafana-data-dir
         persistentVolumeClaim:
