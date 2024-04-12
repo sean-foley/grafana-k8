@@ -39,6 +39,13 @@ spec:
       labels:
         app: grafana
     spec:
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: kubernetes.io/hostname
+          whenUnsatisfiable: ScheduleAnyway
+          labelSelector:
+            matchLabels:
+              app: grafana
       securityContext:
         runAsUser: 472
         runAsGroup: 472
